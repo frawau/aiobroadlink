@@ -400,7 +400,7 @@ class rm(BroadlinkDevice):
                 return
         self.result.put_nowait(False)
 
-    def check_temp(self):
+    def check_temperature(self):
         """Retrieve sensor information. Command side"""
         message = Message(self, "Command")
         message.payload=bytearray(b'\x01'+b'\x00'*15)
@@ -412,26 +412,23 @@ class rm(BroadlinkDevice):
         temp =  False
         if self.check_noerror(resp):
             payload = self.decrypt(bytes(resp[56:]))
-            if isinstance(payload[4], int):
-                temp = (payload[4] * 10 + payload[5]) / 10.0
-            else:
-                temp = (ord(payload[4]) * 10 + ord(payload[5])) / 10.0
+            temp = (payload[4] * 10 + payload[5]) / 10.0
         self.result.put_nowait(temp)
 
-    async def check_temperature(self, timeout=5):
+    async def temperature_check(self, timeout=5):
         """Conveenience coroutine to retrieve sesor data"""
         if not self.is_auth:
             resu = await self.authenticate()
             if not self.is_auth:
                 logging.critical("Could not authenticate")
                 return None
-        self.check_temp()
+        self.check_temperature()
         try:
             temp = await aio.wait_for(self.result.get(), timeout=timeout)
             logging.debug("Got temperature {}’C".format(temp))
             return temp
         except aio.TimeoutError:
-            logging.debug("No answer to check_temp")
+            logging.debug("No answer to check_temperature")
             return None
 
     async def learn_ir_code(self, timeout = 10):
@@ -622,7 +619,7 @@ class a1(BroadlinkDevice):
 
         self.result.put_nowait(resu)
 
-    async def check_sensors_data(self, timeout=5):
+    async def sensor_check(self, timeout=5):
         """Conveenience coroutine to retrieve sensor data"""
         if not self.is_auth:
             resu = await self.authenticate()
@@ -687,7 +684,7 @@ class mp1(BroadlinkDevice):
             self.current_state = resu
         self.result.put_nowait(resu)
 
-    async def set_socket(self, sid, state, timeout = 5):
+    async def power_set(self, sid, state, timeout = 5):
         """Convenience coroutine to set the power of a socket. sid start from 0, state can be 1,0, on,off"""
         if not self.is_auth:
             resu = await self.authenticate()
@@ -697,7 +694,7 @@ class mp1(BroadlinkDevice):
         if isinstance(state,int):
             mystate = state and 1
         elif isinstance(state,str):
-            mystate = (state.lower() == "on" and 1 ) or 1
+            mystate = (state.lower() == "on" and 1 ) or 0
         else:
             logging.error("Unexpected class for state {}. Turning socket off.".format(state.__class__))
             mystate = 0
@@ -709,7 +706,7 @@ class mp1(BroadlinkDevice):
             logging.debug("No answer to set_power")
         return resu
 
-    async def check_socket(self, sid=None, timeout = 5):
+    async def power_check(self, sid=None, timeout = 5):
         """Convenience coroutine to check the current status of socket.
         The return value is "on" or "off". If sid is none all status are returned in an array"""
         if not self.is_auth:
@@ -731,6 +728,142 @@ class mp1(BroadlinkDevice):
         except aio.TimeoutError:
             logging.debug("No answer to set_power")
         return resu
+
+class sp2(BroadlinkDevice):
+    """Class for Broadlink remote control devices"""
+    def __init__(self, ip, mac, devtype, name = "Broadlink"):
+        super().__init__(devtype, name)
+        self.ip = ip
+        self.mac = mac
+        self.nightmode = 0
+        self.power = 0
+        self.nextmode = None
+        self.dev = "SP2"
+
+
+    def set_power(self,state, nightmode=0):
+        """Set device power mode. Command side, state and nightmode are 1 or 0"""
+        message = Message(self, "Command")
+        message.payload=bytearray(b'\x02'+b'\x00'*15)
+        message.payload[4] = (2 if nightmode else 0) + ( 1 if state else 0)
+        message.cb = self.set_power_cb
+        self.nextmode = [state, nightmode]
+        self.controller.send_message(message)
+
+    def set_power_cb(self,resp):
+        """Set device power mode. Reply side"""
+        resu = False
+        if self.check_noerror(resp):
+            #payload = self.decrypt(bytes(resp[56:]))
+            resu = True
+            if self.nextmode:
+                self.power, self.nightmode = self.nextmode
+        self.nextmode = None
+        self.result.put_nowait(resu)
+
+    def check_power(self):
+        """Check socket state. Command side"""
+        message = Message(self, "Command")
+        message.payload=bytearray(b'\x01'+b'\x00'*15)
+        self.controller.send_message(message)
+
+    def check_power_cb(self,resp):
+        """Check socket state. Reply side"""
+        resu = False
+        if self.check_noerror(resp):
+            payload = self.decrypt(bytes(resp[56:]))
+            self.power = payload[4]&0x1
+            self.nightmode = payload[4]&0x2
+            resu = {"power": self.power, "nightmode": self.nightmode}
+        self.result.put_nowait(resu)
+
+    def check_energy(self):
+        """Check energy. Command side"""
+        message = Message(self, "Command")
+        message.payload=bytearray(b'\x01\x00\xfe\x01\x05\x01\x00\x00\x00\x2d')
+        message.cb = self.check_energy_cb
+        self.controller.send_message(message)
+
+    def check_energy_cb(self,resp):
+        """Check energy. Reply side"""
+        resu = False
+        if self.check_noerror(resp):
+            payload = self.decrypt(bytes(resp[56:]))
+            evalue = int.from_bytes(payload[6:8], byteorder='little', signed=False)
+            evalue += payload[5]/100.0
+            resu = evalue
+        self.result.put_nowait(resu)
+
+    async def power_set(self, state, nightmode, timeout = 5):
+        """Convenience coroutine to set the state of a device. state and nightmode can be 1,0, on,off"""
+        if not self.is_auth:
+            resu = await self.authenticate()
+            if not self.is_auth:
+                logging.critical("Could not authenticate")
+                return False
+        if isinstance(state,int):
+            mystate = state and 1
+        elif isinstance(state,str):
+            mystate = (state.lower() == "on" and 1 ) or 0
+        else:
+            logging.error("Unexpected class for state {}. Turning socket off.".format(state.__class__))
+            mystate = 0
+
+        if isinstance(nightmode, int):
+            mynm = nightmode and 1
+        elif isinstance(nightmode,str):
+            mynm = (nightmode.lower() == "on" and 1 ) or 0
+        else:
+            logging.error("Unexpected class for nightmode {}. Turning nightmode off.".format(state.__class__))
+            mynm = 0
+
+        self.set_power(sid,mystate, mynm)
+        resu = False
+        try:
+            resu = await aio.wait_for(self.result.get(), timeout=timeout)
+        except aio.TimeoutError:
+            logging.debug("No answer to set_power")
+        return resu
+
+    async def power_check(self, timeout = 5):
+        """Convenience coroutine to check the state of a device. state and nightmode can be 1,0, on,off"""
+        if not self.is_auth:
+            resu = await self.authenticate()
+            if not self.is_auth:
+                logging.critical("Could not authenticate")
+                return False
+
+        self.check_power()
+        try:
+            data = await aio.wait_for(self.result.get(), timeout=timeout)
+            logging.debug("Got power state {}".format(data))
+            if data:
+                return data
+            return None
+        except aio.TimeoutError:
+            logging.debug("No answer to check_power")
+            return None
+
+    async def energy_check(self, timeout = 5):
+        """Convenience coroutine to check the state of a device. state and nightmode can be 1,0, on,off"""
+        if not self.is_auth:
+            resu = await self.authenticate()
+            if not self.is_auth:
+                logging.critical("Could not authenticate")
+                return False
+
+        self.check_energy()
+        try:
+            data = await aio.wait_for(self.result.get(), timeout=timeout)
+            logging.debug("Got energy reading {}".format(data))
+            if data:
+                return data
+            return None
+        except aio.TimeoutError:
+            logging.debug("No answer to check_energy")
+            return None
+
+
 
 class BroadlinkProtocol:
     """The networking part of the aiobroadlink library. This
@@ -905,23 +1038,24 @@ class BroadlinkProtocol:
             logging.debug("Ooops in discovery: {}".format(e))
 
 
+
 def gen_device(dtype, ip, mac, desc):
     """Convinience function that generates devices based on they type."""
 
     devices = {
         #sp1: [0],
-        #sp2: [0x2711,  # SP2
-              #0x2719, 0x7919, 0x271a, 0x791a,  # Honeywell SP2
-              #0x2720,  # SPMini
-              #0x753e,  # SP3
-              #0x7D00,  # OEM branded SP3
-              #0x947a, 0x9479,  # SP3S
-              #0x2728,  # SPMini2
-              #0x2733, 0x273e,  # OEM branded SPMini
-              #0x7530, 0x7546, 0x7918,  # OEM branded SPMini2
-              #0x7D0D,  # TMall OEM SPMini3
-              #0x2736  # SPMiniPlus
-              #],
+        sp2: [0x2711,  # SP2
+              0x2719, 0x7919, 0x271a, 0x791a,  # Honeywell SP2
+              0x2720,  # SPMini
+              0x753e,  # SP3
+              0x7D00,  # OEM branded SP3
+              0x947a, 0x9479,  # SP3S
+              0x2728,  # SPMini2
+              0x2733, 0x273e,  # OEM branded SPMini
+              0x7530, 0x7546, 0x7918,  # OEM branded SPMini2
+              0x7D0D,  # TMall OEM SPMini3
+              0x2736  # SPMiniPlus
+              ],
         rm: [0x2712,  # RM2
              0x2737,  # RM Mini
              0x273d,  # RM Pro Phicomm
@@ -973,7 +1107,7 @@ if __name__ == "__main__":
     async def do_test(dev):
         await aio.sleep(5)
         logging.debug("Checking Temperature")
-        temp = await dev.check_temperature()
+        temp = await dev.temperature_check()
         if temp is not None:
             print("Got temperature {}’C".format(temp))
         else:
