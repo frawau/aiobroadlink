@@ -726,7 +726,7 @@ class mp1(BroadlinkDevice):
             else:
                 resu = [ (x and "on") or "off" for x in resu ]
         except aio.TimeoutError:
-            logging.debug("No answer to set_power")
+            logging.debug("No answer to check_power")
         return resu
 
 class sp2(BroadlinkDevice):
@@ -877,7 +877,6 @@ class BroadlinkProtocol:
 
 
     def connection_made(self, transport):
-        print("connected")
         self.transport = transport
         sock = transport.get_extra_info("socket")
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
