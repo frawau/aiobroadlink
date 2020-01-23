@@ -41,7 +41,7 @@ def Process(dev):
 
 
 def A1menu():
-    print("\t[1]\tPower (0 or 1)")
+    print("\t[1]\tCheck Sensor")
     print("")
     print("\t[3]\tRename (New name)")
 
@@ -53,7 +53,7 @@ async def A1process(dev, vals):
         if not vals:
             print("Something went wrong")
         else:
-            for x, y in vals:
+            for x, y in vals.items():
                 print ( "{}:\t{}".format(x.capitalize(), y))
     elif int(vals[0]) == 3:
         #rename

@@ -573,7 +573,7 @@ class a1(BroadlinkDevice):
         if self.check_noerror(resp):
             payload = self.decrypt(bytes(resp[56:]))
             data = {}
-            payload = self.decrypt(bytes(response[0x38:]))
+            payload = self.decrypt(bytes(resp[0x38:]))
             if isinstance(payload[4], int):
                 data['temperature'] = (payload[4] * 10 + payload[5]) / 10.0
                 data['humidity'] = (payload[6] * 10 + payload[7]) / 10.0
