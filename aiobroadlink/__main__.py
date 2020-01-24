@@ -226,6 +226,8 @@ async def MP1process(dev, vals):
 
 async def do_provision(ssid, passphrase, security):
     dev = abl.BroadlinkDevice(0)
+    dev.mac = "aa:bb:cc:dd:ee:ff"
+    blproto.register(dev)
     resu = await dev.provision(ssid, passphrase,security)
     if resu:
         print("Device was provisioned")
