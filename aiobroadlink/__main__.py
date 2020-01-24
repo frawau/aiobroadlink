@@ -80,6 +80,7 @@ def RM2menu():
     print("\t[4]\tLearn RF Command (device name) (command name)")
     print("")
     print("\t[6]\tRename (New name)")
+    print("\t[99]\tProvision security SSID Passphrase")
 
 async def RM2process(dev, vals):
     global learnt_cmd, opts, devicelist, alock
@@ -165,6 +166,19 @@ async def RM2process(dev, vals):
             else:
                 del(devicelist[k])
         devicelist[" ".join(vals[1:])] = dev
+    elif int(vals[0]) == 99:
+        #Provision
+        if len(vals) < 4:
+            print("Error: You must specify a security mode, a SSID and a passphrase")
+        elif vals[1].lower() not in ['none', 'wep', 'wpa1', 'wpa2', 'wpa1/2']:
+            print("Error: Security mode must be one of: none, wep, wpa1, wpa2 or wpa1/2")
+        else:
+            resu = await dev.provision(vals[2], " ".join(vals[3:]),vals[1].lower())
+            if resu:
+                print("Device was provisioned")
+            else:
+                print("Error: Device could not be provisioned")
+
     else:
         print("Unknown command")
     await aio.sleep(0)
