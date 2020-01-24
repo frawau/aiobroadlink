@@ -225,14 +225,20 @@ async def MP1process(dev, vals):
     await aio.sleep(0)
 
 async def do_provision(ssid, passphrase, security):
+    global devicelist
     dev = abl.BroadlinkDevice(0)
     dev.mac = "aa:bb:cc:dd:ee:ff"
     blproto.register(dev)
     resu = await dev.provision(ssid, passphrase,security)
-    if resu:
-        print("Device was provisioned")
-    else:
-        print("Error: Device could not be provisioned")
+    print("Let's hope the device was provisioned")
+    blproto.unregister(dev)
+    dname = None
+    for aname in devicelist:
+        if devicelist[aname] == dev:
+            dname = aname
+            break
+    if dname:
+        del(devicelist[dname])
 
 
 def readin():
