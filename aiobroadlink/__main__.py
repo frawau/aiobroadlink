@@ -273,14 +273,14 @@ def readin():
                 if int(lov[0]) > 0:
                     if int(lov[0]) <=len(devicelist):
                         selected=devicelist[lonames[int(lov[0])-1]]
-                    elif int(vals[0]) == 99:
+                    elif int(lov[0]) == 99:
                         #Provision
-                        if len(vals) < 4:
+                        if len(lov) < 4:
                             print("Error: You must specify a security mode, a SSID and a passphrase")
-                        elif vals[1].lower() not in ['none', 'wep', 'wpa1', 'wpa2', 'wpa1/2']:
+                        elif lov[1].lower() not in ['none', 'wep', 'wpa1', 'wpa2', 'wpa1/2']:
                             print("Error: Security mode must be one of: none, wep, wpa1, wpa2 or wpa1/2")
                         else:
-                            t3 = event_loop.create_task( do_provision(vals[2], " ".join(vals[3:]),vals[1].lower()))
+                            t3 = event_loop.create_task( do_provision(lov[2], " ".join(lov[3:]),lov[1].lower()))
                             if resu:
                                 print("Device was provisioned")
                             else:
