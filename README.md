@@ -10,6 +10,12 @@ Details at  https://github.com/mjg59/python-broadlink
 
 This is a very early version. Remote Control device seem to be working alright (both IR and RF)
 
+A1 device also work.
+
+Provisioning works.
+
+RM4C can be provisioned and detected, but does not seem to accept commands.
+
 Other will be tested soon.
 
 You can run
