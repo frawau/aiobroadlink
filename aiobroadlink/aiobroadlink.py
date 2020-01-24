@@ -75,13 +75,13 @@ class BroadlinkDevice:
     """ Generic Broadlink device. As-is it can be used to broadcast Hello messages
     """
 
-    def __init__(self, dev_type, name="Broadlink"):
+    def __init__(self, devtype, name="Broadlink"):
         self.init_vect = bytearray(b"\x56\x2e\x17\x99\x6d\x09\x3d\x28\xdd\xb3\xba\x69\x5a\x2e\x6f\x58")
         self.init_key = bytearray(b'\x09\x76\x28\x34\x3f\xe9\x9e\x23\x76\x5c\x15\x13\xac\xcf\x8b\x02')
         self.connect_id = bytearray(b'\xa5\xaa\x55\x5a\xa5\xaa\x55\x00')
         self.key = self.update_aes(self.init_key)
         self.id = bytearray(4)
-        self.dev_type = dev_type
+        self.dev_type = devtype
         self.dev_id = 0
         self.dev = "Generic"
         self.mac = "00:00:00:00:00:00"
@@ -170,6 +170,7 @@ class BroadlinkDevice:
         payload[20:22] = port.to_bytes(2, byteorder="little")
         message.payload = payload
         message.encrypt = False
+        message.multiple = True
         message.cb = self.hello_cb
         self.controller.send_message(message)
 
@@ -983,8 +984,9 @@ class BroadlinkProtocol:
                 message.payload = message.device.encrypt(message.payload)
 
             packet = packet + message.payload
-            checksum = self._checksum(packet)
-            packet[32:34] = checksum.to_bytes(2, byteorder="little")
+
+        checksum = self._checksum(packet)
+        packet[32:34] = checksum.to_bytes(2, byteorder="little")
 
         self.waiting[message.device] = (message.ret,message.cb,dt.datetime.now(),message.multiple)
         logging.debug("Sending to {}: {}".format(message.device.ip,packet))
@@ -1069,7 +1071,8 @@ def gen_device(dtype, ip, mac, desc):
              0x27a1,  # RM2 Pro Plus R1
              0x27a6,  # RM2 Pro PP
              0x278f,  # RM Mini Shate
-             0x27c2  # RM Mini 3
+             0x27c2,  # RM Mini 3
+             0x62be,  # RM 4 Mini
              ],
         a1: [0x2714],  # A1
         mp1: [0x4EB5,  # MP1
@@ -1083,7 +1086,8 @@ def gen_device(dtype, ip, mac, desc):
     # Look for the class associated to devtype in devices
     [device_class] = [dev for dev in devices if dtype in devices[dev]] or [None]
     if device_class is None:
-        return BroadlinkDevice(devtype=dtype, name = desc)
+        print("Unknow device type 0x%x"%dtype)
+        return BroadlinkDevice(dtype, name = desc)
     return device_class(ip=ip, mac=mac, devtype=dtype, name = desc)
 
 if __name__ == "__main__":
