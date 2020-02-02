@@ -73,7 +73,14 @@ async def A1process(dev, vals):
         print("Unknown command")
     await aio.sleep(0)
 
-def RM2menu():
+def RMmenu():
+    print("\t[1]\tCheck Temperature")
+    print("\t[2]\tSend Command (device name) (command name)")
+    print("\t[3]\tLearn IR Command (device name) (command name)")
+    print("")
+    print("\t[6]\tRename (New name)")
+
+def RMpromenu():
     print("\t[1]\tCheck Temperature")
     print("\t[2]\tSend Command (device name) (command name)")
     print("\t[3]\tLearn IR Command (device name) (command name)")
@@ -81,7 +88,7 @@ def RM2menu():
     print("")
     print("\t[6]\tRename (New name)")
 
-async def RM2process(dev, vals):
+async def RMprocess(dev, vals):
     global learnt_cmd, opts, devicelist, alock
     if int(vals[0]) == 1:
         tmp = await dev.temperature_check()
@@ -121,35 +128,39 @@ async def RM2process(dev, vals):
                     json.dump(learnt_cmd,f)
                 print("Command {} for device {} has been learnt".format(vals[2],vals[1]))
     elif int(vals[0]) == 4:
-        async def next_phase():
-            print("You can stop now")
-            print("You will now press the command to learn once.")
-            print("Hit <Return> when ready.")
-            await aio.sleep(0)
 
-        if len(vals) != 3:
-            print("Error: You must specify single worded device name and command name.")
+        if not isinstance(dev,abl.rmp):
+            print("Unknown command")
         else:
-            alock  = aio.Lock()
-            await alock.acquire()
-            print("Learning RF. Please continuously press the command to learn on the remote control.")
-            print("This is so that the device will lock onto the frequency.")
-            print("Hit <Return> when ready.")
-            await alock.acquire()
-            code = await dev.learn_rf_code(timeout=10,cb=next_phase, lock=alock)
+            async def next_phase():
+                print("You can stop now")
+                print("You will now press the command to learn once.")
+                print("Hit <Return> when ready.")
+                await aio.sleep(0)
 
-            alock = None
-            if not code:
-                print("Could not learn command")
+            if len(vals) != 3:
+                print("Error: You must specify single worded device name and command name.")
             else:
-                if vals[1] not in learnt_cmd:
-                    learnt_cmd[vals[1]] = {}
-                if vals[2] not in learnt_cmd[vals[1]]:
-                    learnt_cmd[vals[1]][vals[2]] = {}
-                learnt_cmd[vals[1]][vals[2]] = base64.b64encode(code).decode('ascii')
-                with open(opts.learnt,"w") as f:
-                    json.dump(learnt_cmd,f)
-                print("Command {} for device {} has been learnt".format(vals[2],vals[1]))
+                alock  = aio.Lock()
+                await alock.acquire()
+                print("Learning RF. Please continuously press the command to learn on the remote control.")
+                print("This is so that the device will lock onto the frequency.")
+                print("Hit <Return> when ready.")
+                await alock.acquire()
+                code = await dev.learn_rf_code(timeout=10,cb=next_phase, lock=alock)
+
+                alock = None
+                if not code:
+                    print("Could not learn command")
+                else:
+                    if vals[1] not in learnt_cmd:
+                        learnt_cmd[vals[1]] = {}
+                    if vals[2] not in learnt_cmd[vals[1]]:
+                        learnt_cmd[vals[1]][vals[2]] = {}
+                    learnt_cmd[vals[1]][vals[2]] = base64.b64encode(code).decode('ascii')
+                    with open(opts.learnt,"w") as f:
+                        json.dump(learnt_cmd,f)
+                    print("Command {} for device {} has been learnt".format(vals[2],vals[1]))
 
     elif int(vals[0]) == 6:
         #rename
@@ -267,8 +278,10 @@ def readin():
                     pass
                 elif selected.dev == "A1":
                     t3 = event_loop.create_task(A1process(selected,lov))
-                elif  selected.dev == "RM2":
-                    t3 = event_loop.create_task(RM2process(selected,lov))
+                elif  selected.dev == "RM":
+                    t3 = event_loop.create_task(RMprocess(selected,lov))
+                elif  selected.dev == "RM PRO":
+                    t3 = event_loop.create_task(RMprocess(selected,lov))
                 elif  selected.dev == "MP1":
                     t3 = event_loop.create_task(MP1process(selected,lov))
                 elif  selected.dev == "SP2":
@@ -308,8 +321,10 @@ def readin():
         print("Select Function for {}:".format(name))
         if selected.dev == "A1":
             A1menu()
-        elif selected.dev == "RM2":
-            RM2menu()
+        elif selected.dev == "RM":
+            RMmenu()
+        elif selected.dev == "RM PRO":
+            RMpromenu()
         elif selected.dev == "MP1":
             MP1menu()
         elif selected.dev == "SP2":
@@ -389,9 +404,13 @@ try:
     print("Hit \"Enter\" to start")
     print("Use Ctrl-C to quit")
     event_loop.run_forever()
-except:
+except KeyboardInterrupt:
+    print('Exiting at user request.')
+except Exception as e:
+    print('Exiting because {}.'.format(e))
     pass
 finally:
+    blproto.stop_discovery = True
     event_loop.remove_reader(sys.stdin)
-    t2.cancel()
+    event_loop.run_until_complete(aio.sleep(10))
     event_loop.close()

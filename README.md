@@ -26,3 +26,5 @@ If your IP address cannot be guessed, do
 
     python3 -m aiobroadlink -i xxx.xxx.xxx.xxx
 
+with xxx.xxx.xxx.xxx the IP address of the interface you want to use.
+

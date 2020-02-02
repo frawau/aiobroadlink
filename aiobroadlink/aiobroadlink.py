@@ -290,7 +290,7 @@ class rm(BroadlinkDevice):
         super().__init__(devtype, name)
         self.ip = ip
         self.mac = mac
-        self.dev = "RM2"
+        self.dev = "RM"
 
     def check_data(self):
         """Retrieve data leant by the device. Command side"""
@@ -338,68 +338,6 @@ class rm(BroadlinkDevice):
             self.result.put_nowait(True)
         else:
             self.result.put_nowait(False)
-
-    def sweep_frequency(self):
-        """Search for RF frequency carrier. Command side"""
-        message = Message(self, "Command")
-        message.payload=bytearray(b'\x19'+b'\x00'*15)
-        message.cb = self.sweep_frequency_cb
-        self.controller.send_message(message)
-
-    def sweep_frequency_cb(self,resp):
-        """Search for RF frequency carrier. Reply side"""
-        logging.debug("Got answer to sweep_frequency: {}".format(resp))
-        if self.check_noerror(resp):
-            self.result.put_nowait(True)
-        else:
-            self.result.put_nowait(False)
-
-    def cancel_sweep_frequency(self):
-        """Cancel search for RF frequency carrier. Command side"""
-        message = Message(self, "Command")
-        message.payload=bytearray(b'\x1e'+b'\x00'*15)
-        message.cb = self.cancel_sweep_frequency_cb
-        self.controller.send_message(message)
-
-    def cancel_sweep_frequency_cb(self,resp):
-        """Cancel search for RF frequency carrier. Reply side"""
-        logging.debug("Got answer to cancel_sweep_frequency: {}".format(resp))
-        if self.check_noerror(resp):
-            self.result.put_nowait(True)
-        else:
-            self.result.put_nowait(False)
-
-    def check_frequency(self):
-        """"Check if carrier has been acquirted. Command side"""
-        message = Message(self, "Command")
-        message.payload=bytearray(b'\x1a'+b'\x00'*15)
-        message.cb = self.check_frequency_cb
-        self.controller.send_message(message)
-
-    def check_frequency_cb(self,resp):
-        """"Check if carrier has been acquirted. Reply side"""
-        if self.check_noerror(resp):
-            payload = self.decrypt(bytes(resp[56:]))
-            if payload[4] == 1:
-                self.result.put_nowait(True)
-                return
-        self.result.put_nowait(False)
-
-    def find_rf_packet(self):
-        """"Rertrieve learnt RF code. Command side"""
-        message = Message(self, "Command")
-        message.payload=bytearray(b'\x1b'+b'\x00'*15)
-        message.cb = self.find_rf_packet_cb
-        self.controller.send_message(message)
-
-    def find_rf_packet_cb(self,resp):
-        """"Rertrieve learnt RF code. Reply side"""
-        if self.check_noerror(resp):
-            payload = self.decrypt(bytes(resp[56:]))
-            if payload[0x04] == 1:
-                self.result.put_nowait(True)
-                return
-        self.result.put_nowait(False)
 
     def check_temperature(self):
         """Retrieve sensor information. Command side"""
@@ -484,6 +422,74 @@ class rm(BroadlinkDevice):
             logging.debug("No answer to send_data")
 
         return resu
+
+class rmp(rm):
+    """Class for Broadlink remote control devices"""
+    def __init__(self, ip, mac, devtype, name = "Broadlink"):
+        super().__init__(ip, mac, devtype, name)
+        self.dev = "RM PRO"
+
+    def sweep_frequency(self):
+        """Search for RF frequency carrier. Command side"""
+        message = Message(self, "Command")
+        message.payload=bytearray(b'\x19'+b'\x00'*15)
+        message.cb = self.sweep_frequency_cb
+        self.controller.send_message(message)
+
+    def sweep_frequency_cb(self,resp):
+        """Search for RF frequency carrier. Reply side"""
+        logging.debug("Got answer to sweep_frequency: {}".format(resp))
+        if self.check_noerror(resp):
+            self.result.put_nowait(True)
+        else:
+            self.result.put_nowait(False)
+
+    def cancel_sweep_frequency(self):
+        """Cancel search for RF frequency carrier. Command side"""
+        message = Message(self, "Command")
+        message.payload=bytearray(b'\x1e'+b'\x00'*15)
+        message.cb = self.cancel_sweep_frequency_cb
+        self.controller.send_message(message)
+
+    def cancel_sweep_frequency_cb(self,resp):
+        """Cancel search for RF frequency carrier. Reply side"""
+        logging.debug("Got answer to cancel_sweep_frequency: {}".format(resp))
+        if self.check_noerror(resp):
+            self.result.put_nowait(True)
+        else:
+            self.result.put_nowait(False)
+
+    def check_frequency(self):
+        """"Check if carrier has been acquirted. Command side"""
+        message = Message(self, "Command")
+        message.payload=bytearray(b'\x1a'+b'\x00'*15)
+        message.cb = self.check_frequency_cb
+        self.controller.send_message(message)
+
+    def check_frequency_cb(self,resp):
+        """"Check if carrier has been acquirted. Reply side"""
+        if self.check_noerror(resp):
+            payload = self.decrypt(bytes(resp[56:]))
+            if payload[4] == 1:
+                self.result.put_nowait(True)
+                return
+        self.result.put_nowait(False)
+
+    def find_rf_packet(self):
+        """"Rertrieve learnt RF code. Command side"""
+        message = Message(self, "Command")
+        message.payload=bytearray(b'\x1b'+b'\x00'*15)
+        message.cb = self.find_rf_packet_cb
+        self.controller.send_message(message)
+
+    def find_rf_packet_cb(self,resp):
+        """"Rertrieve learnt RF code. Reply side"""
+        if self.check_noerror(resp):
+            payload = self.decrypt(bytes(resp[56:]))
+            if payload[0x04] == 1:
+                self.result.put_nowait(True)
+                return
+        self.result.put_nowait(False)
 
     async def learn_rf_code(self, timeout = 10, cb = None, lock = None):
         """A convenience coroutine to learn a RF code.
@@ -875,6 +881,7 @@ class BroadlinkProtocol:
         self.devices = {}
         self.process = process
         self.transport = None
+        self.stop_discovery = False
 
 
     def connection_made(self, transport):
@@ -1028,6 +1035,9 @@ class BroadlinkProtocol:
                     logging.debug("Waited in vain")
                     self.cleanup()
                     while total > 0:
+                        if self.stop_discovery:
+                            frequency = 0
+                            break
                         logging.debug("Decreasing")
                         total -= DSTEPS
                         await aio.sleep(DSTEPS)
@@ -1062,17 +1072,18 @@ def gen_device(dtype, ip, mac, desc):
              0x273d,  # RM Pro Phicomm
              0x2783,  # RM2 Home Plus
              0x277c,  # RM2 Home Plus GDT
-             0x272a,  # RM2 Pro Plus
-             0x2787,  # RM2 Pro Plus2
-             0x279d,  # RM2 Pro Plus3
-             0x27a9,  # RM2 Pro Plus_300
-             0x278b,  # RM2 Pro Plus BL
-             0x2797,  # RM2 Pro Plus HYC
-             0x27a1,  # RM2 Pro Plus R1
-             0x27a6,  # RM2 Pro PP
              0x278f,  # RM Mini Shate
              0x27c2,  # RM Mini 3
              0x62be,  # RM 4 Mini
+             ],
+        rmp: [0x272a,  # RM2 Pro Plus
+              0x2787,  # RM2 Pro Plus2
+              0x279d,  # RM2 Pro Plus3
+              0x27a9,  # RM2 Pro Plus_300
+              0x278b,  # RM2 Pro Plus BL
+              0x2797,  # RM2 Pro Plus HYC
+              0x27a1,  # RM2 Pro Plus R1
+              0x27a6,  # RM2 Pro PP
              ],
         a1: [0x2714],  # A1
         mp1: [0x4EB5,  # MP1

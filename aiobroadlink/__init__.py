@@ -1,1 +1,1 @@
-from .aiobroadlink import BroadlinkDevice, rm, a1, mp1, sp2, BroadlinkProtocol
+from .aiobroadlink import BroadlinkDevice, rm, rmp, a1, mp1, sp2, BroadlinkProtocol
