@@ -14,7 +14,7 @@ A1 device also work.
 
 Provisioning works.
 
-RM4C can be provisioned and detected, but does not seem to accept commands.
+RM4C are now supported.
 
 Other will be tested soon.
 
