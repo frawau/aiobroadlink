@@ -45,7 +45,7 @@ COMMANDS = {
     "Command"     : [0x6a,0x3ee]
     }
 
-TIMEOUT = 7 # seconds. After tis Timeout
+TIMEOUT = 7 # seconds. After this Timeout
 DSTEPS = 10 #seconds. Decrement value and sleep time between discovery runs.
 
 class Message:
@@ -75,7 +75,7 @@ class BroadlinkDevice:
     """ Generic Broadlink device. As-is it can be used to broadcast Hello messages
     """
 
-    def __init__(self, devtype, name="Broadlink"):
+    def __init__(self, devtype, name="Broadlink", cloud = False):
         self.init_vect = bytearray(b"\x56\x2e\x17\x99\x6d\x09\x3d\x28\xdd\xb3\xba\x69\x5a\x2e\x6f\x58")
         self.init_key = bytearray(b'\x09\x76\x28\x34\x3f\xe9\x9e\x23\x76\x5c\x15\x13\xac\xcf\x8b\x02')
         self.connect_id = bytearray(b'\xa5\xaa\x55\x5a\xa5\xaa\x55\x00')
@@ -87,6 +87,7 @@ class BroadlinkDevice:
         self.mac = "00:00:00:00:00:00"
         self.ip = "255.255.255.255"
         self.name = name[:32]
+        self.cloud = False
         self.count = 0
         self.controller = None
         self.result = aio.Queue()
@@ -188,7 +189,8 @@ class BroadlinkDevice:
                 break
             desc.append(resp[64+x])
         desc = desc.decode("utf-8")
-        newdev = gen_device(dev_type,ip,mac,desc)
+        cloud = bool(resp[-1])
+        newdev = gen_device(dev_type,ip,mac,desc,cloud)
         self.result.put_nowait(newdev)
 
     def auth(self):
@@ -286,16 +288,18 @@ class BroadlinkDevice:
 
 class rm(BroadlinkDevice):
     """Class for Broadlink remote control devices"""
-    def __init__(self, ip, mac, devtype, name = "Broadlink"):
-        super().__init__(devtype, name)
+    def __init__(self, ip, mac, devtype, name = "Broadlink", cloud = False):
+        super().__init__(devtype, name = name, cloud = cloud)
         self.ip = ip
         self.mac = mac
         self.dev = "RM"
+        self._request_header = bytes()
+        self._code_sending_header = bytes()
 
     def check_data(self):
         """Retrieve data leant by the device. Command side"""
         message = Message(self, "Command")
-        message.payload =  bytearray(b'\x04'+b'\x00'*15)
+        message.payload =  bytearray(self._request_header + b'\x04')
         message.cb = self.check_data_cb
         self.controller.send_message(message)
 
@@ -303,14 +307,14 @@ class rm(BroadlinkDevice):
         """Retrieve the data learnt by the device. Reply Side"""
         if self.check_noerror(resp):
             payload = self.decrypt(bytes(resp[56:]))
-            self.result.put_nowait(payload[0x04:])
+            self.result.put_nowait(payload[len(self._request_header)+0x04:])
         else:
             self.result.put_nowait(False)
 
     def send_data(self, data):
         """Request device to send IR/RF codes. Command side"""
         message = Message(self, "Command")
-        payload = bytearray([0x02, 0x00, 0x00, 0x00])
+        payload = bytearray(self._code_sending_header) + bytearray([0x02, 0x00, 0x00, 0x00])
         payload += data
         message.payload=payload
         message.cb = self.send_data_cb
@@ -327,7 +331,7 @@ class rm(BroadlinkDevice):
     def enter_learning(self):
         """Start learning an IR code. Command side"""
         message = Message(self, "Command")
-        message.payload=bytearray(b'\x03'+b'\x00'*15)
+        message.payload = bytearray(self._request_header) + bytearray(b'\x03')
         message.cb = self.enter_learning_cb
         self.controller.send_message(message)
 
@@ -342,7 +346,7 @@ class rm(BroadlinkDevice):
     def check_temperature(self):
         """Retrieve sensor information. Command side"""
         message = Message(self, "Command")
-        message.payload=bytearray(b'\x01'+b'\x00'*15)
+        message.payload = bytearray(self._request_header) + bytearray(b'\x01')
         message.cb = self.check_temp_cb
         self.controller.send_message(message)
 
@@ -351,7 +355,8 @@ class rm(BroadlinkDevice):
         temp =  False
         if self.check_noerror(resp):
             payload = self.decrypt(bytes(resp[56:]))
-            temp = (payload[4] * 10 + payload[5]) / 10.0
+            offset = len(self._request_header) + 0x04
+            temp = (payload[offset] * 10 + payload[offset+1]) / 10.0
         self.result.put_nowait(temp)
 
     async def temperature_check(self, timeout=5):
@@ -371,7 +376,7 @@ class rm(BroadlinkDevice):
             return None
 
     async def learn_ir_code(self, timeout = 10):
-        """Convinience coroutine to learn IR code"""
+        """Convenience coroutine to learn IR code"""
         if not self.is_auth:
             resu = await self.authenticate()
             if not self.is_auth:
@@ -403,7 +408,7 @@ class rm(BroadlinkDevice):
             return None
 
     async def send_code(self, code, timeout = 5):
-        """Convinience coroutine to request the device to issue
+        """Convenience coroutine to request the device to issue
         a giiven IR/RF code.
 
         The parameter is the code to sent
@@ -425,14 +430,16 @@ class rm(BroadlinkDevice):
 
 class rmp(rm):
     """Class for Broadlink remote control devices"""
-    def __init__(self, ip, mac, devtype, name = "Broadlink"):
+    def __init__(self, ip, mac, devtype, name = "Broadlink", cloud = False):
         super().__init__(ip, mac, devtype, name)
         self.dev = "RM PRO"
+        self._request_header = bytes()
+        self._code_sending_header = bytes()
 
     def sweep_frequency(self):
         """Search for RF frequency carrier. Command side"""
         message = Message(self, "Command")
-        message.payload=bytearray(b'\x19'+b'\x00'*15)
+        message.payload = bytearray(self._request_header) + bytearray(b'\x19')
         message.cb = self.sweep_frequency_cb
         self.controller.send_message(message)
 
@@ -447,7 +454,7 @@ class rmp(rm):
     def cancel_sweep_frequency(self):
         """Cancel search for RF frequency carrier. Command side"""
         message = Message(self, "Command")
-        message.payload=bytearray(b'\x1e'+b'\x00'*15)
+        message.payload = bytearray(self._request_header) + bytearray(b'\x1e')
         message.cb = self.cancel_sweep_frequency_cb
         self.controller.send_message(message)
 
@@ -462,7 +469,7 @@ class rmp(rm):
     def check_frequency(self):
         """"Check if carrier has been acquirted. Command side"""
         message = Message(self, "Command")
-        message.payload=bytearray(b'\x1a'+b'\x00'*15)
+        message.payload = bytearray(self._request_header) + bytearray(b'\x1a')
         message.cb = self.check_frequency_cb
         self.controller.send_message(message)
 
@@ -470,7 +477,7 @@ class rmp(rm):
         """"Check if carrier has been acquirted. Reply side"""
         if self.check_noerror(resp):
             payload = self.decrypt(bytes(resp[56:]))
-            if payload[4] == 1:
+            if payload[len(self._request_header)+0x04] == 1:
                 self.result.put_nowait(True)
                 return
         self.result.put_nowait(False)
@@ -478,7 +485,7 @@ class rmp(rm):
     def find_rf_packet(self):
         """"Rertrieve learnt RF code. Command side"""
         message = Message(self, "Command")
-        message.payload=bytearray(b'\x1b'+b'\x00'*15)
+        message.payload = bytearray(self._request_header) + bytearray(b'\x1b')
         message.cb = self.find_rf_packet_cb
         self.controller.send_message(message)
 
@@ -486,7 +493,7 @@ class rmp(rm):
         """"Rertrieve learnt RF code. Reply side"""
         if self.check_noerror(resp):
             payload = self.decrypt(bytes(resp[56:]))
-            if payload[0x04] == 1:
+            if payload[len(self._request_header)+0x04] == 1:
                 self.result.put_nowait(True)
                 return
         self.result.put_nowait(False)
@@ -502,7 +509,7 @@ class rmp(rm):
         step. To that effect 2 parameters are provided.
 
             cb: a callback coroutine that will be awaited midway through the process
-            lock:  An asyncio.Lock that needs to be acquired before one casn proceed.
+            lock:  An asyncio.Lock that needs to be acquired before one can proceed.
         """
         if not self.is_auth:
             resu = await self.authenticate()
@@ -558,10 +565,83 @@ class rmp(rm):
             logging.debug("Could not get data")
             return None
 
+class rm4(rm):
+    """Class for Broadlink remote control devices"""
+    def __init__(self, ip, mac, devtype, name = "Broadlink", cloud = False):
+        super().__init__(ip, mac, devtype, name)
+        self.dev = "RM4"
+        self._request_header = b'\x04\x00'
+        self._code_sending_header = b'\xd0\x00'
+
+    def check_temperature(self):
+        """Retrieve sensor information. Command side"""
+        message = Message(self, "Command")
+        message.payload = bytearray(self._request_header) + bytearray(b'\x24')
+        message.cb = self.check_temp_cb
+        self.controller.send_message(message)
+
+    def check_temp_cb(self,resp):
+        """Retrieve sensor information. Reply side"""
+        temp =  False
+        if self.check_noerror(resp):
+            payload = self.decrypt(bytes(resp[56:]))
+            offset = len(self._request_header) + 0x04
+            temp = (payload[offset] * 10 + payload[offset+1]) / 10.0
+        self.result.put_nowait(temp)
+
+    async def temperature_check(self, timeout=5):
+        """Conveenience coroutine to retrieve sesor data"""
+        if not self.is_auth:
+            resu = await self.authenticate()
+            if not self.is_auth:
+                logging.critical("Could not authenticate")
+                return None
+        self.check_temperature()
+        try:
+            temp = await aio.wait_for(self.result.get(), timeout=timeout)
+            logging.debug("Got temperature {}’C".format(temp))
+            return temp
+        except aio.TimeoutError:
+            logging.debug("No answer to check_temperature")
+            return None
+
+
+    def check_humidity(self):
+        """Retrieve sensor information. Command side"""
+        message = Message(self, "Command")
+        message.payload = bytearray(self._request_header) + bytearray(b'\x24')
+        message.cb = self.check_humid_cb
+        self.controller.send_message(message)
+
+    def check_humid_cb(self,resp):
+        """Retrieve sensor information. Reply side"""
+        temp =  False
+        if self.check_noerror(resp):
+            payload = self.decrypt(bytes(resp[56:]))
+            offset = len(self._request_header) + 0x06
+            temp = (payload[offset] * 10 + payload[offset+1]) / 10.0
+        self.result.put_nowait(temp)
+
+    async def humidity_check(self, timeout=5):
+        """Conveenience coroutine to retrieve sesor data"""
+        if not self.is_auth:
+            resu = await self.authenticate()
+            if not self.is_auth:
+                logging.critical("Could not authenticate")
+                return None
+        self.check_temperature()
+        try:
+            temp = await aio.wait_for(self.result.get(), timeout=timeout)
+            logging.debug("Got humidity {}%".format(temp))
+            return temp
+        except aio.TimeoutError:
+            logging.debug("No answer to check_humidity")
+            return None
+
 class a1(BroadlinkDevice):
     """Class for Broadlink remote control devices"""
-    def __init__(self, ip, mac, devtype, name = "Broadlink"):
-        super().__init__(devtype, name)
+    def __init__(self, ip, mac, devtype, name = "Broadlink", cloud = False):
+        super().__init__(devtype, name = name, cloud = cloud)
         self.ip = ip
         self.mac = mac
         self.dev = "A1"
@@ -646,8 +726,8 @@ class a1(BroadlinkDevice):
 
 class mp1(BroadlinkDevice):
     """Class for Broadlink remote control devices"""
-    def __init__(self, ip, mac, devtype, name = "Broadlink", nbsock = 4):
-        super().__init__(devtype, name)
+    def __init__(self, ip, mac, devtype, name = "Broadlink", cloud = False, nbsock = 4):
+        super().__init__(devtype, name = name, cloud = cloud)
         self.ip = ip
         self.mac = mac
         self.dev = "MP1"
@@ -738,8 +818,8 @@ class mp1(BroadlinkDevice):
 
 class sp2(BroadlinkDevice):
     """Class for Broadlink remote control devices"""
-    def __init__(self, ip, mac, devtype, name = "Broadlink"):
-        super().__init__(devtype, name)
+    def __init__(self, ip, mac, devtype, name = "Broadlink", cloud = False):
+        super().__init__(devtype, name = name, cloud = cloud)
         self.ip = ip
         self.mac = mac
         self.nightmode = 0
@@ -1050,8 +1130,8 @@ class BroadlinkProtocol:
 
 
 
-def gen_device(dtype, ip, mac, desc):
-    """Convinience function that generates devices based on they type."""
+def gen_device(dtype, ip, mac, desc, cloud):
+    """Convenience function that generates devices based on they type."""
 
     devices = {
         #sp1: [0],
@@ -1074,7 +1154,17 @@ def gen_device(dtype, ip, mac, desc):
              0x277c,  # RM2 Home Plus GDT
              0x278f,  # RM Mini Shate
              0x27c2,  # RM Mini 3
-             0x62be,  # RM 4 Mini
+             0x27d1,  # new RM Mini3
+             0x27de  # RM Mini 3 (C)
+             ],
+        rm4: [0x51da,  # RM4 Mini
+              0x5f36,  # RM Mini 3
+              0x6026,  # RM4 Pro
+              0x6070,  # RM4c Mini
+              0x610e,  # RM4 Mini
+              0x610f,  # RM4c
+              0x62bc,  # RM4 Mini
+              0x62be  # RM4c
              ],
         rmp: [0x272a,  # RM2 Pro Plus
               0x2787,  # RM2 Pro Plus2
@@ -1098,8 +1188,8 @@ def gen_device(dtype, ip, mac, desc):
     [device_class] = [dev for dev in devices if dtype in devices[dev]] or [None]
     if device_class is None:
         print("Unknow device type 0x%x"%dtype)
-        return BroadlinkDevice(dtype, name = desc)
-    return device_class(ip=ip, mac=mac, devtype=dtype, name = desc)
+        return BroadlinkDevice(dtype, name = desc, cloud = cloud)
+    return device_class(ip=ip, mac=mac, devtype=dtype, name = desc, cloud = cloud)
 
 if __name__ == "__main__":
     import sys

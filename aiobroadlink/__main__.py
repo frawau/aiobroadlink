@@ -280,6 +280,8 @@ def readin():
                     t3 = event_loop.create_task(A1process(selected,lov))
                 elif  selected.dev == "RM":
                     t3 = event_loop.create_task(RMprocess(selected,lov))
+                elif  selected.dev == "RM4":
+                    t3 = event_loop.create_task(RMprocess(selected,lov))
                 elif  selected.dev == "RM PRO":
                     t3 = event_loop.create_task(RMprocess(selected,lov))
                 elif  selected.dev == "MP1":
@@ -322,6 +324,8 @@ def readin():
         if selected.dev == "A1":
             A1menu()
         elif selected.dev == "RM":
+            RMmenu()
+        elif selected.dev == "RM4":
             RMmenu()
         elif selected.dev == "RM PRO":
             RMpromenu()
@@ -405,9 +409,9 @@ try:
     print("Use Ctrl-C to quit")
     event_loop.run_forever()
 except KeyboardInterrupt:
-    print('Exiting at user request.')
+    print('\nExiting at user request.')
 except Exception as e:
-    print('Exiting because {}.'.format(e))
+    print('\nExiting because {}.'.format(e))
     pass
 finally:
     blproto.stop_discovery = True
