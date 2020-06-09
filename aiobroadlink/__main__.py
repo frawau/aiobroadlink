@@ -376,24 +376,24 @@ else:
 
 if not opts.ip:
     #Let's try to figure it out"
-    #try:
-    import netifaces
-    for iface in netifaces.interfaces():
-        alladdr = netifaces.ifaddresses(iface)
-        if netifaces.AF_INET in alladdr:
-            alladdr = alladdr[netifaces.AF_INET]
-            for addr in alladdr:
-                if not addr["addr"].startswith("127."):
-                    logging.debug("Selecting address {} on {}".format(addr["addr"],iface))
-                    opts.ip = addr["addr"]
+    try:
+        import netifaces
+        for iface in netifaces.interfaces():
+            alladdr = netifaces.ifaddresses(iface)
+            if netifaces.AF_INET in alladdr:
+                alladdr = alladdr[netifaces.AF_INET]
+                for addr in alladdr:
+                    if not addr["addr"].startswith("127."):
+                        logging.debug("Selecting address {} on {}".format(addr["addr"],iface))
+                        opts.ip = addr["addr"]
+                        break
+                if opts.ip:
                     break
-            if opts.ip:
-                break
-    if not opts.ip:
-        raise Exception
-    #except:
-        #print("No IP address was specified. We tried but could not guess it. Make sure netifaces is installed")
-        #sys.exit(1)
+        if not opts.ip:
+            raise Exception
+    except:
+        print("No IP address was specified. We tried but could not guess it. Make sure netifaces is installed")
+        sys.exit(1)
 
 
 alock = None

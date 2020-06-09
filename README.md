@@ -8,15 +8,20 @@ Details at https://blog.ipsumdomus.com/broadlink-smart-home-devices-complete-pro
 This software is based on python-broadlink by Matthew Garrett
 Details at  https://github.com/mjg59/python-broadlink
 
-This is a very early version. Remote Control device seem to be working alright (both IR and RF)
+Remote Control device seem to be working alright (both IR and RF)
+
+RM4C are now supported.
 
 A1 device also work.
 
 Provisioning works.
 
-RM4C are now supported.
+Other will be tested when I get the relevant hardware.
 
-Other will be tested soon.
+Install with pip3. Be forwarned that aiobroadlink needs the 'cryptography' library.
+This library will be automatically installed, but for this to succeed, you do need to
+be able to compile things. To that effect you need a compiler and some header files. On
+Debian/Ubuntu distributions, this means you need the packages 'libffi-dev' and 'libssl-dev'
 
 You can run
 
