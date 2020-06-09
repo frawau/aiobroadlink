@@ -18,7 +18,7 @@ Provisioning works.
 
 Other will be tested when I get the relevant hardware.
 
-Install with pip3. Be forwarned that aiobroadlink needs the 'cryptography' library.
+Install with pip3. Be forewarned that aiobroadlink needs the 'cryptography' library.
 This library will be automatically installed, but for this to succeed, you do need to
 be able to compile things. To that effect you need a compiler and some header files. On
 Debian/Ubuntu distributions, this means you need the packages 'libffi-dev' and 'libssl-dev'
@@ -33,3 +33,4 @@ If your IP address cannot be guessed, do
 
 with xxx.xxx.xxx.xxx the IP address of the interface you want to use.
 
+When learning commands, they will be save in the file ~/.aiobroadlink.
