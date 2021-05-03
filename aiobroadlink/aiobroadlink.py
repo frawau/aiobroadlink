@@ -1163,8 +1163,15 @@ def gen_device(dtype, ip, mac, desc, cloud):
               0x6070,  # RM4c Mini
               0x610e,  # RM4 Mini
               0x610f,  # RM4c
+              0x61a2,  # RM4 pro
               0x62bc,  # RM4 Mini
-              0x62be  # RM4c
+              0x62be,  # RM4c
+              0x6364,  # RM4S
+              0x648d,  # RM4 mini
+              0x649b,  # RM4 pro
+              0x6539,  # RM4c Mini
+              0x653a,  # RM4 mini
+              0x653c,  # RM4 pro
              ],
         rmp: [0x272a,  # RM2 Pro Plus
               0x2787,  # RM2 Pro Plus2
@@ -1176,8 +1183,10 @@ def gen_device(dtype, ip, mac, desc, cloud):
               0x27a6,  # RM2 Pro PP
              ],
         a1: [0x2714],  # A1
-        mp1: [0x4EB5,  # MP1
-              0x4EF7  # Honyar oem mp1
+        mp1: [0x4eb5,  # MP1
+              0x4ef7,  # Honyar oem mp1
+              0x4f1b,  # MP1-1K3S2U
+              0x4f65,  # MP1-1K3S2U
               ],
         #hysen: [0x4EAD],  # Hysen controller
         #S1C: [0x2722],  # S1 (SmartOne Alarm Kit)

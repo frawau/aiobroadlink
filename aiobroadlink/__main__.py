@@ -28,6 +28,8 @@ import argparse, random, json, os, logging, base64
 
 devicelist = {}
 selected = None
+alock = None
+event_loop = None
 
 def getname(dev):
     return dev.dev+"-"+"".join(random.choices('abcdefghijklmn0pqrstuvwxyz', k=6))
@@ -348,73 +350,80 @@ def readin():
     print("")
     print("Your choice: ", end='',flush=True)
 
-parser = argparse.ArgumentParser(description="Track and interact with Broadlink devices.")
-parser.add_argument("-i", "--ip", default="",
-                    help="IP address to bind to.")
-parser.add_argument("-l", "--learnt", default="~/.aiobroadlink",
-                    help="Json file used to keep learnt commands for RM2 devices.")
-parser.add_argument("-d","--debug", action='store_true', default=False,
-                    help="Print unexpected messages.")
-try:
-    opts = parser.parse_args()
-except Exception as e:
-    parser.error("Error: " + str(e))
 
-if opts.debug:
-    logging.basicConfig(level=logging.DEBUG)
-else:
-    logging.basicConfig(level=logging.INFO)
 
-learnt_cmd = {}
-opts.learnt = os.path.abspath(os.path.expanduser(opts.learnt))
-if not os.path.isfile(opts.learnt):
-    with open(opts.learnt,"w") as f:
-        json.dump({},f)
-else:
-    with open(opts.learnt,"r+") as f:
-        learnt_cmd = json.load(f)
+def main(args=None):
+    global event_loop
 
-if not opts.ip:
-    #Let's try to figure it out"
+    parser = argparse.ArgumentParser(description="Track and interact with Broadlink devices.")
+    parser.add_argument("-i", "--ip", default="",
+                        help="IP address to bind to.")
+    parser.add_argument("-l", "--learnt", default="~/.aiobroadlink",
+                        help="Json file used to keep learnt commands for RM2 devices.")
+    parser.add_argument("-d","--debug", action='store_true', default=False,
+                        help="Print unexpected messages.")
     try:
-        import netifaces
-        for iface in netifaces.interfaces():
-            alladdr = netifaces.ifaddresses(iface)
-            if netifaces.AF_INET in alladdr:
-                alladdr = alladdr[netifaces.AF_INET]
-                for addr in alladdr:
-                    if not addr["addr"].startswith("127."):
-                        logging.debug("Selecting address {} on {}".format(addr["addr"],iface))
-                        opts.ip = addr["addr"]
+        opts = parser.parse_args()
+    except Exception as e:
+        parser.error("Error: " + str(e))
+
+    if opts.debug:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+
+    learnt_cmd = {}
+    opts.learnt = os.path.abspath(os.path.expanduser(opts.learnt))
+    if not os.path.isfile(opts.learnt):
+        with open(opts.learnt,"w") as f:
+            json.dump({},f)
+    else:
+        with open(opts.learnt,"r+") as f:
+            learnt_cmd = json.load(f)
+
+    if not opts.ip:
+        #Let's try to figure it out"
+        try:
+            import netifaces
+            for iface in netifaces.interfaces():
+                alladdr = netifaces.ifaddresses(iface)
+                if netifaces.AF_INET in alladdr:
+                    alladdr = alladdr[netifaces.AF_INET]
+                    for addr in alladdr:
+                        if not addr["addr"].startswith("127."):
+                            logging.debug("Selecting address {} on {}".format(addr["addr"],iface))
+                            opts.ip = addr["addr"]
+                            break
+                    if opts.ip:
                         break
-                if opts.ip:
-                    break
-        if not opts.ip:
-            raise Exception
-    except:
-        print("No IP address was specified. We tried but could not guess it. Make sure netifaces is installed")
-        sys.exit(1)
+            if not opts.ip:
+                raise Exception
+        except:
+            print("No IP address was specified. We tried but could not guess it. Make sure netifaces is installed")
+            sys.exit(1)
 
 
-alock = None
-event_loop = aio.get_event_loop()
-try:
-    blproto = abl.BroadlinkProtocol(process=Process)
-    coro = event_loop.create_datagram_endpoint(
-        lambda: blproto, local_addr=(opts.ip, 0))
-    task = event_loop.create_task(coro)
-    event_loop.add_reader(sys.stdin,readin)
-    t2 = event_loop.create_task(blproto.discovery())
-    print("Hit \"Enter\" to start")
-    print("Use Ctrl-C to quit")
-    event_loop.run_forever()
-except KeyboardInterrupt:
-    print('\nExiting at user request.')
-except Exception as e:
-    print('\nExiting because {}.'.format(e))
-    pass
-finally:
-    blproto.stop_discovery = True
-    event_loop.remove_reader(sys.stdin)
-    event_loop.run_until_complete(aio.sleep(10))
-    event_loop.close()
+    event_loop = aio.get_event_loop()
+    try:
+        blproto = abl.BroadlinkProtocol(process=Process)
+        coro = event_loop.create_datagram_endpoint(
+            lambda: blproto, local_addr=(opts.ip, 0))
+        task = event_loop.create_task(coro)
+        event_loop.add_reader(sys.stdin,readin)
+        t2 = event_loop.create_task(blproto.discovery())
+        print("Hit \"Enter\" to start")
+        print("Use Ctrl-C to quit")
+        event_loop.run_forever()
+    except KeyboardInterrupt:
+        print('\nExiting at user request.')
+    except Exception as e:
+        print('\nExiting because {}.'.format(e))
+        pass
+    finally:
+        blproto.stop_discovery = True
+        event_loop.remove_reader(sys.stdin)
+        event_loop.run_until_complete(aio.sleep(10))
+        event_loop.close()
+
+if __name__ == "__main__":
+    main()
