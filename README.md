@@ -11,6 +11,7 @@ Details at  https://github.com/mjg59/python-broadlink
 Remote Control device seem to be working alright (both IR and RF)
 
 RM4C are now supported.
+RM4 PRO are also supported.
 
 A1 device also work.
 
@@ -25,11 +26,15 @@ Debian/Ubuntu distributions, this means you need the packages 'libffi-dev' and '
 
 You can run
 
+    aionroadlink
+
+or
+
     python3 -m aiobroadlink
 
 If your IP address cannot be guessed, do
 
-    python3 -m aiobroadlink -i xxx.xxx.xxx.xxx
+    aiobroadlink -i xxx.xxx.xxx.xxx
 
 with xxx.xxx.xxx.xxx the IP address of the interface you want to use.
 
