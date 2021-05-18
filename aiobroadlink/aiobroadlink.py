@@ -491,10 +491,10 @@ class rmp(rm):
     def check_frequency_cb(self, resp):
         """"Check if carrier has been acquirted. Reply side"""
         if self.check_noerror(resp):
-            payload = self.decrypt(bytes(resp[56:]))
-            if payload[len(self._request_header) + 0x04] == 1:
-                self.result.put_nowait(True)
-                return
+            #payload = self.decrypt(bytes(resp[56:]))
+            #if payload[len(self._request_header) + 0x04] == 1:
+            self.result.put_nowait(True)
+            return
         self.result.put_nowait(False)
 
     def find_rf_packet(self):

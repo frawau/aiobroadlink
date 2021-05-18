@@ -26,7 +26,7 @@ Debian/Ubuntu distributions, this means you need the packages 'libffi-dev' and '
 
 You can run
 
-    aionroadlink
+    aiobroadlink
 
 or
 
